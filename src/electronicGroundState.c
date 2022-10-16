@@ -623,6 +623,28 @@ void scf_loop(SPARC_OBJ *pSPARC) {
             t1 = MPI_Wtime();
             dEband = pSPARC->Eband;
             dEtot  = pSPARC->Etot;
+
+            // store/update input Veff for density mixing
+            if (pSPARC->dmcomm_phi != MPI_COMM_NULL) {
+                for (i = 0; i < NspinDMnd; i++) 
+                    pSPARC->Veff_loc_dmcomm_phi_in[i] = pSPARC->Veff_loc_dmcomm_phi[i];
+            }
+            
+            // update potential
+            Calculate_elecstPotential(pSPARC);
+            Calculate_Vxc(pSPARC);
+            Calculate_Veff_loc_dmcomm_phi(pSPARC);
+            
+            // here potential is consistent with density
+            Calculate_Free_Energy(pSPARC, pSPARC->electronDens); 
+            double Escc = Calculate_Escc(
+                pSPARC, NspinDMnd, pSPARC->Veff_loc_dmcomm_phi, 
+                pSPARC->Veff_loc_dmcomm_phi_in, pSPARC->electronDens + sindx_rho,
+                pSPARC->dmcomm_phi
+            );
+            pSPARC->Escc = Escc;
+            pSPARC->Etot = pSPARC->Etot + Escc;
+
             // Calculate/estimate system energies
             // Note: we estimate energy based on rho_in, which is shown
             //       to make energy convergence faster. But note that 
@@ -631,17 +653,17 @@ void scf_loop(SPARC_OBJ *pSPARC) {
             //       everything in rho_out (to correct the rho_in terms in band 
             //       struc energy). This is done once SCF is converged. Therefore
             //       the final reported energy is variational.
-            if(pSPARC->spin_typ != 0) {
-                double *rho_in = (double *)malloc(3 * DMnd * sizeof(double));
-                for (int i = 0; i < DMnd; i++) {
-                    rho_in[i] = pSPARC->mixing_hist_xk[i] + pSPARC->mixing_hist_xk[DMnd+i];
-                    rho_in[DMnd+i] = pSPARC->mixing_hist_xk[i];
-                    rho_in[2*DMnd+i] = pSPARC->mixing_hist_xk[DMnd+i];
-                }
-                Calculate_Free_Energy(pSPARC, rho_in);
-                free(rho_in);
-            } else
-                Calculate_Free_Energy(pSPARC, pSPARC->mixing_hist_xk);
+            // if(pSPARC->spin_typ != 0) {
+            //     double *rho_in = (double *)malloc(3 * DMnd * sizeof(double));
+            //     for (int i = 0; i < DMnd; i++) {
+            //         rho_in[i] = pSPARC->mixing_hist_xk[i] + pSPARC->mixing_hist_xk[DMnd+i];
+            //         rho_in[DMnd+i] = pSPARC->mixing_hist_xk[i];
+            //         rho_in[2*DMnd+i] = pSPARC->mixing_hist_xk[DMnd+i];
+            //     }
+            //     Calculate_Free_Energy(pSPARC, rho_in);
+            //     free(rho_in);
+            // } else
+            //     Calculate_Free_Energy(pSPARC, pSPARC->mixing_hist_xk);
             
             dEband = fabs(dEband - pSPARC->Eband) / pSPARC->n_atom;
             dEtot  = fabs(dEtot  - pSPARC->Etot ) / pSPARC->n_atom;
@@ -866,28 +888,28 @@ void scf_loop(SPARC_OBJ *pSPARC) {
     }
 
     // Calculate actual energy for density mixing
-    if (pSPARC->MixingVariable == 0) {
-        // store/update input Veff for density mixing
-        if (pSPARC->dmcomm_phi != MPI_COMM_NULL) {
-            for (i = 0; i < NspinDMnd; i++) 
-                pSPARC->Veff_loc_dmcomm_phi_in[i] = pSPARC->Veff_loc_dmcomm_phi[i];
-        }
+    // if (pSPARC->MixingVariable == 0) {
+    //     // store/update input Veff for density mixing
+    //     if (pSPARC->dmcomm_phi != MPI_COMM_NULL) {
+    //         for (i = 0; i < NspinDMnd; i++) 
+    //             pSPARC->Veff_loc_dmcomm_phi_in[i] = pSPARC->Veff_loc_dmcomm_phi[i];
+    //     }
         
-        // update potential
-        Calculate_elecstPotential(pSPARC);
-        Calculate_Vxc(pSPARC);
-        Calculate_Veff_loc_dmcomm_phi(pSPARC);
+    //     // update potential
+    //     Calculate_elecstPotential(pSPARC);
+    //     Calculate_Vxc(pSPARC);
+    //     Calculate_Veff_loc_dmcomm_phi(pSPARC);
         
-        // here potential is consistent with density
-        Calculate_Free_Energy(pSPARC, pSPARC->electronDens); 
-        double Escc = Calculate_Escc(
-            pSPARC, NspinDMnd, pSPARC->Veff_loc_dmcomm_phi, 
-            pSPARC->Veff_loc_dmcomm_phi_in, pSPARC->electronDens + sindx_rho,
-            pSPARC->dmcomm_phi
-        );
-        pSPARC->Escc = Escc;
-        pSPARC->Etot = pSPARC->Etot + Escc;
-    }
+    //     // here potential is consistent with density
+    //     Calculate_Free_Energy(pSPARC, pSPARC->electronDens); 
+    //     double Escc = Calculate_Escc(
+    //         pSPARC, NspinDMnd, pSPARC->Veff_loc_dmcomm_phi, 
+    //         pSPARC->Veff_loc_dmcomm_phi_in, pSPARC->electronDens + sindx_rho,
+    //         pSPARC->dmcomm_phi
+    //     );
+    //     pSPARC->Escc = Escc;
+    //     pSPARC->Etot = pSPARC->Etot + Escc;
+    // }
 
     #ifdef USE_EVA_MODULE
     EVA_buff_finalize();
