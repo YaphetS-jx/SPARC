@@ -566,11 +566,24 @@ void scf(SPARC_OBJ *pSPARC)
     }
 	#endif
 
-    scf_loop(pSPARC);
-    if (pSPARC->usefock > 0) {
+    // scf_loop(pSPARC);
+    // if (pSPARC->usefock > 0) {
+    //     pSPARC->usefock ++;
+    //     Exact_Exchange_loop(pSPARC);
+    //     pSPARC->usefock ++;
+    // }
+
+    if (pSPARC->usefock <= 1) {
+        scf_loop(pSPARC);
+        if (pSPARC->usefock == 1) {
+            // usefock >=2 scf with exact exchange
+            pSPARC->usefock ++;
+            Exact_Exchange_loop(pSPARC);
+        }
+    } else {
+        // usefock >=2 scf with exact exchange
         pSPARC->usefock ++;
         Exact_Exchange_loop(pSPARC);
-        pSPARC->usefock ++;
     }
 }
 
@@ -958,7 +971,7 @@ void scf_loop(SPARC_OBJ *pSPARC) {
     }
 
     // check if scf is converged
-    double TOL = (pSPARC->usefock % 2 == 1) ? pSPARC->TOL_SCF_INIT : pSPARC->TOL_SCF;
+    double TOL = (pSPARC->usefock == 1) ? pSPARC->TOL_SCF_INIT : pSPARC->TOL_SCF;
     if (error > TOL) {
     	if(!rank) {
             printf("WARNING: SCF#%d did not converge to desired accuracy!\n",
@@ -1030,7 +1043,7 @@ void Evaluate_scf_error(SPARC_OBJ *pSPARC, double *scf_error, int *scf_conv) {
 
     // output
     *scf_error = error;
-    *scf_conv  = (pSPARC->usefock % 2 == 1) 
+    *scf_conv  = (pSPARC->usefock == 1) 
                 ? ((int) (error < pSPARC->TOL_SCF_INIT)) : ((int) (error < pSPARC->TOL_SCF));
 }
 
@@ -1078,7 +1091,7 @@ void Evaluate_QE_scf_error(SPARC_OBJ *pSPARC, double *scf_error, int *scf_conv)
     MPI_Bcast(&error, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);   
     // output
     *scf_error = error;
-    *scf_conv  = (pSPARC->usefock % 2 == 1) 
+    *scf_conv  = (pSPARC->usefock == 1) 
                 ? ((int) (error < pSPARC->TOL_SCF_INIT)) : ((int) (error < pSPARC->TOL_SCF));
 }
 

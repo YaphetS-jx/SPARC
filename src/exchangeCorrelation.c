@@ -104,7 +104,7 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
         || strcmpi(pSPARC->XC,"vdWDF1") == 0 || strcmpi(pSPARC->XC,"vdWDF2") == 0)
         Calculate_Vxc_GGA(pSPARC, rho);
     else if(strcmpi(pSPARC->XC,"HF") == 0) {
-        if (pSPARC->usefock%2 == 1)
+        if (pSPARC->usefock == 1)
             Calculate_Vxc_GGA(pSPARC, rho);
         else {
             for (i = 0; i < pSPARC->Nd_d; i++) {
@@ -520,13 +520,13 @@ void Calculate_Vxc_GGA_PBE(SPARC_OBJ *pSPARC, XCCST_OBJ *xc_cst, double *rho) {
         exc = exc * 2.0;
         pSPARC->e_xc[i] = exc * rhotot_inv;
 
-        if ((pSPARC->usefock > 0) && (pSPARC->usefock % 2 == 0) && strcmpi(pSPARC->XC,"PBE0") == 0) {
+        if (pSPARC->usefock > 1 && strcmpi(pSPARC->XC,"PBE0") == 0) {
             pSPARC->e_xc[i] *=  (1.0 - pSPARC->exx_frac);
             pSPARC->Dxcdgrho[i] *= (1.0 - pSPARC->exx_frac);
             pSPARC->XCPotential[i] *= (1.0 - pSPARC->exx_frac);
         }
 
-        if ((pSPARC->usefock > 0) && (pSPARC->usefock % 2 == 0) && strcmpi(pSPARC->XC,"HSE") == 0) {
+        if (pSPARC->usefock > 1 && strcmpi(pSPARC->XC,"HSE") == 0) {
             double e_xc_sr, Dxcdgrho_sr, XCPotential_sr;
             // Use the same strategy as \rho for \grho here. 
             // Without this threshold, numerical issue will make simulation fail. 
@@ -795,13 +795,13 @@ void Calculate_Vxc_GSGA_PBE(SPARC_OBJ *pSPARC, XCCST_OBJ *xc_cst, double *rho) {
             exc += ex_gga * rho_updn;
 
             // Hybrid functional 
-            if ((pSPARC->usefock > 0) && (pSPARC->usefock % 2 == 0) && strcmpi(pSPARC->XC,"PBE0") == 0) {
+            if (pSPARC->usefock > 1 && strcmpi(pSPARC->XC,"PBE0") == 0) {
                 exc -= pSPARC->exx_frac * ex_gga * rho_updn;
                 pSPARC->Dxcdgrho[DMnd + spn_i*DMnd + i] *= (1.0 - pSPARC->exx_frac);
                 pSPARC->XCPotential[spn_i*DMnd + i] *= (1.0 - pSPARC->exx_frac);
             }
 
-            if ((pSPARC->usefock > 0) && (pSPARC->usefock % 2 == 0) && strcmpi(pSPARC->XC,"HSE") == 0) {
+            if (pSPARC->usefock > 1 && strcmpi(pSPARC->XC,"HSE") == 0) {
                 double e_xc_sr, Dxcdgrho_sr, XCPotential_sr;
                 // Use the same strategy as \rho for \grho here. 
                 // Without this threshold, numerical issue will make simulation fail. 
