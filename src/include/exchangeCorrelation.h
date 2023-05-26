@@ -10,12 +10,12 @@
  */
  
 
-#ifndef XC_H
-#define XC_H
+#ifndef EXCHANGECORRELATION_H
+#define EXCHANGECORRELATION_H
 
 #include "isddft.h"
 
-
+// remove later
 /**
 * @brief Structure to hold the constants used in xc functional
 **/
@@ -54,76 +54,19 @@ double sq_rsfac;
 double sq_rsfac_inv;
 } XCCST_OBJ;
 
-
-/**
-@ brief: function to initialize the constants used in the xc functionals 
-**/
 void xc_constants_init(XCCST_OBJ *xc_cst, SPARC_OBJ *pSPARC);
+void Calculate_Vxc_GGA_PBE(SPARC_OBJ *pSPARC, XCCST_OBJ *xc_cst, double *rho);
+void Calculate_Vxc_GSGA_PBE(SPARC_OBJ *pSPARC, XCCST_OBJ *xc_cst, double *rho);
+void Calculate_Exc_GGA_PBE(SPARC_OBJ *pSPARC, double *electronDens);
+void Calculate_Exc_GSGA_PBE(SPARC_OBJ *pSPARC, double *electronDens);
 
+
+////////////////////////////////////////////////////////////////////////////////////
 
 /**
 * @brief  Calculate exchange correlation potential
 **/
 void Calculate_Vxc(SPARC_OBJ *pSPARC);
-
-
-/**
- * @brief   Calculate the XC potential using LDA.  
- *
- *          This function calls appropriate XC potential calculation routine.
- */
-void Calculate_Vxc_LDA(SPARC_OBJ *pSPARC, double *rho);
-
-
-/**
- * @brief   Calculate the LSDA Perdew-Wang XC potential.
- * 
- *          This function implements LSDA Ceperley-Alder Perdew-Wang 
- *          exchange-correlation potential (PW92).
- */
-void Calculate_Vxc_LSDA_PW(SPARC_OBJ *pSPARC, XCCST_OBJ *xc_cst, double *rho);
-
-
-/**
- * @brief   Calculate the XC potential using LDA.  
- *
- *          This function implements LDA Ceperley-Alder Perdew-Wang 
- *          exchange-correlation potential (PW92).
- */
-void Calculate_Vxc_LDA_PW(SPARC_OBJ *pSPARC, double *rho);
-
-
-/**
- * @brief   Calculate the LDA Perdew-Zunger XC potential.
- *
- *          This function implements LDA Ceperley-Alder Perdew-Zunger 
- *          exchange-correlation potential.
- */
-void Calculate_Vxc_LDA_PZ(SPARC_OBJ *pSPARC, double *rho);
-
-
-/**
- * @brief   Calculate the XC potential using GGA.  
- *
- *          This function calls appropriate XC potential.
- */
-void Calculate_Vxc_GGA(SPARC_OBJ *pSPARC, double *rho);
-
-
-/**
- * @brief   Calculate the XC potential using GGA_PBE.  
- *
- *          This function calls appropriate XC potential.
- */
-void Calculate_Vxc_GGA_PBE(SPARC_OBJ *pSPARC, XCCST_OBJ *xc_cst, double *rho);
-
-
-/**
- * @brief   Calculate the XC potential using GSGA_PBE.  
- *
- *          This function calls appropriate XC potential.
- */
-void Calculate_Vxc_GSGA_PBE(SPARC_OBJ *pSPARC, XCCST_OBJ *xc_cst, double *rho);
 
 
 /**
@@ -133,55 +76,110 @@ void Calculate_Exc(SPARC_OBJ *pSPARC, double *electronDens);
 
 
 /**
- * @brief   Calculate the LDA XC energy.  
+ * @brief   slater exchange
+ */
+void slater(int DMnd, double *rho, double *ex, double *vx);
+
+
+/**
+ * @brief   pw correaltion
+ *          J.P. Perdew and Y. Wang, PRB 45, 13244 (1992)
+ */
+void pw(int DMnd, double *rho, double *ec, double *vc);
+
+
+/**
+ * @brief   pz correaltion
+ *          J.P. Perdew and A. Zunger, PRB 23, 5048 (1981).
+ */
+void pz(int DMnd, double *rho, double *ec, double *vc);
+
+
+/**
+ * @brief   pbe exchange
  *
- *          This function calls appropriate LDA exchange-correlation energy calculation routine.
+ * @param   iflag=1  J.P.Perdew, K.Burke, M.Ernzerhof, PRL 77, 3865 (1996)
+ * @param   iflag=2  PBEsol: J.P.Perdew et al., PRL 100, 136406 (2008)
+ * @param   iflag=3  RPBE: B. Hammer, et al., Phys. Rev. B 59, 7413 (1999)
+ * @param   iflag=4  Zhang-Yang Revised PBE: Y. Zhang and W. Yang., Phys. Rev. Lett. 80, 890 (1998)
  */
-void Calculate_Exc_LDA(SPARC_OBJ *pSPARC, double *electronDens);
+void pbex(int DMnd, double *rho, double *sigma, int iflag, double *ex, double *vx, double *v2x);
 
 
 /**
- * @brief   Calculate the XC energy using LDA.  
+ * @brief   pbe correlation
  *
- *          This function implements LDA Ceperley-Alder Perdew-Wang 
- *          exchange-correlation potential (PW92).
+ * @param   iflag=1  J.P.Perdew, K.Burke, M.Ernzerhof, PRL 77, 3865 (1996)
+ * @param   iflag=2  PBEsol: J.P.Perdew et al., PRL 100, 136406 (2008)
+ * @param   iflag=3  RPBE: B. Hammer, et al., Phys. Rev. B 59, 7413 (1999)
  */
-void Calculate_Exc_LDA_PW(SPARC_OBJ *pSPARC, double *electronDens);
+void pbec(int DMnd, double *rho, double *sigma, int iflag, double *ec, double *vc, double *v2c);
+
 
 /**
- * @brief   Calculate the XC energy using LSDA.  
+ * @brief   slater exchange - spin polarized 
+ */
+void slater_spin(int DMnd, double *rho, double *ex, double *vx);
+
+
+/**
+ * @brief   pw correaltion - spin polarized 
+ *          J.P. Perdew and Y. Wang, PRB 45, 13244 (1992)
+ */
+void pw_spin(int DMnd, double *rho, double *ec, double *vc);
+
+
+/**
+ * @brief   pz correaltion - spin polarized 
+ *          J.P. Perdew and A. Zunger, PRB 23, 5048 (1981).
+ */
+void pz_spin(int DMnd, double *rho, double *ec, double *vc);
+
+
+/**
+ * @brief   pbe exchange - spin polarized
  *
- *          This function implements LSDA Ceperley-Alder Perdew-Wang 
- *          exchange-correlation potential (PW92).
+ * @param   iflag=1  J.P.Perdew, K.Burke, M.Ernzerhof, PRL 77, 3865 (1996)
+ * @param   iflag=2  PBEsol: J.P.Perdew et al., PRL 100, 136406 (2008)
+ * @param   iflag=3  RPBE: B. Hammer, et al., Phys. Rev. B 59, 7413 (1999)
+ * @param   iflag=4  Zhang-Yang Revised PBE: Y. Zhang and W. Yang., Phys. Rev. Lett. 80, 890 (1998)
  */
-void Calculate_Exc_LSDA_PW(SPARC_OBJ *pSPARC, double *electronDens);
+void pbex_spin(int DMnd, double *rho, double *sigma, int iflag, double *ex, double *vx, double *v2x);
+
 
 /**
- * @brief   Calculate the LDA Perdew-Zunger XC energy.  
+ * @brief   pbe correlation - spin polarized
  *
- *          This function implements LDA Ceperley-Alder Perdew-Zunger
- *          exchange-correlation potential.
+ * @param   iflag=1  J.P.Perdew, K.Burke, M.Ernzerhof, PRL 77, 3865 (1996)
+ * @param   iflag=2  PBEsol: J.P.Perdew et al., PRL 100, 136406 (2008)
+ * @param   iflag=3  RPBE: B. Hammer, et al., Phys. Rev. B 59, 7413 (1999)
  */
-void Calculate_Exc_LDA_PZ(SPARC_OBJ *pSPARC, double *electronDens);
+void pbec_spin(int DMnd, double *rho, double *sigma, int iflag, double *ec, double *vc, double *v2c);
 
 
 /**
- * @brief   Calculate the GGA XC energy.  
- *
- *          This function calls appropriate LDA exchange-correlation energy.
+ * @brief   calculate square norm of gradient
  */
-void Calculate_Exc_GGA(SPARC_OBJ *pSPARC, double *electronDens);
+void calculate_square_norm_of_gradient(SPARC_OBJ *pSPARC, 
+        double *rho, double *mag, int DMnd, int ncol, 
+        double *sigma, double *Drho_x, double *Drho_y, double *Drho_z);
+
+/**
+ * @brief   calculate square norm of a set of vector
+ */ 
+void compute_norm_square(SPARC_OBJ *pSPARC, double *norm2, int DMnd, double *v1, double *v2, double *v3);
 
 
 /**
- * @brief   Calculate the GGA Perdew-Burje-Ernzerhof XC energy.
+ * @brief   add core electron density if needed
  */
-void Calculate_Exc_GGA_PBE(SPARC_OBJ *pSPARC, double *electronDens);
+void add_rho_core(SPARC_OBJ *pSPARC, double *rho_in, double *rho_out, int ncol);
+
 
 /**
- * @brief   Calculate the GSGA Perdew-Burje-Ernzerhof XC energy.
+ * @brief   compute Drho times v2xc
  */
-void Calculate_Exc_GSGA_PBE(SPARC_OBJ *pSPARC, double *electronDens);
+void Drho_times_v2xc(SPARC_OBJ *pSPARC, int DMnd, int ncol, double *Drho_x, double *Drho_y, double *Drho_z, double *v2xc);
 
 /**
  * @brief   Calculate PBE short ranged exchange
@@ -200,6 +198,6 @@ void wpbe_analy_erfc_approx_grad(double rho, double s, double omega, double *Fx_
  **/
 void Calculate_xc_energy_density(SPARC_OBJ *pSPARC, double *ExcRho);
 
-#endif // XC_H
+#endif // EXCHANGECORRELATION_H
 
 
