@@ -48,6 +48,11 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
         Drho_y = (double *)malloc(sz * sizeof(double) );
         Drho_z = (double *)malloc(sz * sizeof(double) );
         calculate_square_norm_of_gradient(pSPARC, rho, pSPARC->mag, DMnd, ncol, sigma, Drho_x, Drho_y, Drho_z);
+        if (pSPARC->ixc[3]) { // used for vdW-DF
+            memcpy(pSPARC->Drho[0], Drho_x + (pSPARC->Nspin - 1)*DMnd, DMnd*pSPARC->Nspin*sizeof(double));
+            memcpy(pSPARC->Drho[1], Drho_y + (pSPARC->Nspin - 1)*DMnd, DMnd*pSPARC->Nspin*sizeof(double));
+            memcpy(pSPARC->Drho[2], Drho_z + (pSPARC->Nspin - 1)*DMnd, DMnd*pSPARC->Nspin*sizeof(double));
+        }
     }
 
     if (pSPARC->spin_typ == 0) {
@@ -71,6 +76,9 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
         case 2:
             pbex(DMnd, rho, sigma, pSPARC->xcoption[0], ex, vx, v2x);
             break;
+        case 3:
+            rPW86x(DMnd, rho, sigma, ex, vx, v2x);
+            break;
         default:
             memset(ex, 0, sizeof(double) * DMnd);
             memset(vx, 0, sizeof(double) * DMnd);
@@ -88,6 +96,11 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
             break;
         case 2:
             pw(DMnd, rho, ec, vc);
+            if (pSPARC->ixc[3]) {
+                memcpy(pSPARC->vdWDFecLinear, ec, DMnd*sizeof(double));
+                memcpy(pSPARC->vdWDFVcLinear, vc, DMnd*sizeof(double));
+                memset(v2c, 0, sizeof(double) * DMnd);
+            }
             break;
         case 3:
             pbec(DMnd, rho, sigma, pSPARC->xcoption[1], ec, vc, v2c);
@@ -129,6 +142,9 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
                 pSPARC->Dxcdgrho[i] = v2x[i] + v2c[i];
             }
         }
+
+        if (pSPARC->ixc[3])
+            Calculate_nonLinearCorr_E_V_vdWDF(pSPARC, rho);
 
         if (pSPARC->isgradient) {
             Drho_times_v2xc(pSPARC, DMnd, 1, Drho_x, Drho_y, Drho_z, pSPARC->Dxcdgrho);
@@ -175,6 +191,9 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
         case 2:
             pbex_spin(DMnd, rho, sigma, pSPARC->xcoption[0], ex, vx, v2x);
             break;
+        case 3:
+            rPW86x_spin(DMnd, rho, sigma + DMnd, ex, vx, v2x);
+            break;
         default:
             memset(ex, 0, sizeof(double) * DMnd);
             memset(vx, 0, sizeof(double) * DMnd*2);
@@ -192,6 +211,11 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
             break;
         case 2:
             pw_spin(DMnd, rho, ec, vc);
+            if (pSPARC->ixc[3]) {
+                memcpy(pSPARC->vdWDFecLinear, ec, DMnd*sizeof(double));
+                memcpy(pSPARC->vdWDFVcLinear, vc, DMnd*2*sizeof(double));
+                memset(v2c, 0, sizeof(double) * DMnd);
+            }
             break;
         case 3:
             pbec_spin(DMnd, rho, sigma, pSPARC->xcoption[1], ec, vc, v2c);
@@ -240,6 +264,9 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
                 pSPARC->Dxcdgrho[i+2*DMnd] = v2x[i+DMnd];
             }
         }
+
+        if (pSPARC->ixc[3])
+            Calculate_nonLinearCorr_E_V_SvdWDF(pSPARC, rho);
 
         if (pSPARC->isgradient) {
             Drho_times_v2xc(pSPARC, DMnd, 3, Drho_x, Drho_y, Drho_z, pSPARC->Dxcdgrho);
@@ -298,7 +325,7 @@ void Calculate_Exc(SPARC_OBJ *pSPARC, double *electronDens)
     Exc *= pSPARC->dV;
     MPI_Allreduce(MPI_IN_PLACE, &Exc, 1, MPI_DOUBLE, MPI_SUM, pSPARC->dmcomm_phi);
     pSPARC->Exc = Exc;
-
+    if (pSPARC->ixc[3]) Add_Exc_vdWDF(pSPARC); // the function is in /vdW/vdWDF/vdWDF.c
     free(rho);
 }
 
@@ -431,6 +458,36 @@ void pbex(int DMnd, double *rho, double *sigma, int iflag, double *ex, double *v
         ex[i] = ex_lsd * fx;
         vx[i] = ex_lsd * ((4.0/3.0) * fx + rho_updn * dfxdn);
         v2x[i] = 0.5 * ex_lsd * rho_updn * dfxdg;
+    }
+}
+
+/**
+* @brief the function to compute the potential and energy density of PW86 GGA exchange
+*/
+void rPW86x(int DMnd, double *rho, double *sigma, double *vdWDFex, double *vdWDFVx1, double *vdWDFVx2) {
+    double s, s_2, s_3, s_4, s_5, s_6, fs, grad_rho, df_ds;
+    double a = 1.851;
+    double b = 17.33;
+    double c = 0.163;
+    double s_prefactor = 6.18733545256027; // 2*(3\pi^2)^(1/3)
+    double Ax = -0.738558766382022; // -3/4 * (3/pi)^(1/3)
+    double four_thirds = 4.0/3.0;
+    
+    for (int i = 0; i < DMnd; i++) {
+        if (sigma[i] < 1E-14) sigma[i] = 1E-14;
+        grad_rho = sqrt(sigma[i]);
+        s = grad_rho / (s_prefactor*pow(rho[i], four_thirds));
+        s_2 = s*s;
+        s_3 = s_2*s;
+        s_4 = s_3*s;
+        s_5 = s_3*s_2;
+        s_6 = s_5*s;
+
+        fs = pow(1.0 + a*s_2 + b*s_4 + c*s_6, 1.0/15.0);
+        vdWDFex[i] = Ax * pow(rho[i], 1.0/3.0) * fs; // \epsilon_x, not n\epsilon_x
+        df_ds = (1.0/(15.0*pow(fs, 14.0))) * (2.0*a*s + 4.0*b*s_3 + 6.0*c*s_5);
+        vdWDFVx1[i] = Ax*four_thirds * (pow(rho[i], 1.0/3.0)*fs - grad_rho/(s_prefactor*rho[i])*df_ds);
+        vdWDFVx2[i] = Ax * df_ds/(s_prefactor*grad_rho);
     }
 }
 
@@ -754,6 +811,44 @@ void pbex_spin(int DMnd, double *rho, double *sigma, int iflag, double *ex, doub
         }
         ex[i] = extot * rhotot_inv;
     }
+}
+
+
+/**
+* @brief the function to compute the potential and energy density of PW86 GGA exchange, spin-polarized case
+*/
+void rPW86x_spin(int DMnd, double *rho, double *sigma, double *vdWDFex, double *vdWDFVx1, double *vdWDFVx2) {
+    double s, s_2, s_3, s_4, s_5, s_6, fs, grad_rho, df_ds;
+    double *exUpDn = (double*)malloc(sizeof(double)*DMnd*2); // row 1: rho_up*epsilon(2*rho_up); row 2: rho_dn*epsilon(2*rho_dn);
+    double a = 1.851;
+    double b = 17.33;
+    double c = 0.163;
+    double s_prefactor = 6.18733545256027; // 2*(3\pi^2)^(1/3)
+    double Ax = -0.738558766382022; // -3/4 * (3/pi)^(1/3)
+    double four_thirds = 4.0/3.0;
+    int i;
+    double two_pow13 = pow(2.0, 1.0/3.0);
+    
+    for (i = 0; i < 2*DMnd; i++) {
+        if (sigma[i] < 1E-14) sigma[i] = 1E-14;
+        grad_rho = sqrt(sigma[i]);
+        s = grad_rho / (two_pow13 * s_prefactor*pow(rho[DMnd + i], four_thirds));
+        s_2 = s*s;
+        s_3 = s_2*s;
+        s_4 = s_3*s;
+        s_5 = s_3*s_2;
+        s_6 = s_5*s;
+
+        fs = pow(1.0 + a*s_2 + b*s_4 + c*s_6, 1.0/15.0);
+        exUpDn[i] = Ax * two_pow13 * pow(rho[DMnd + i], 1.0/3.0 + 1.0) * fs; // \epsilon_x, not n\epsilon_x
+        df_ds = (1.0/(15.0*pow(fs, 14.0))) * (2.0*a*s + 4.0*b*s_3 + 6.0*c*s_5);
+        vdWDFVx1[i] = Ax*four_thirds * (two_pow13 * pow(rho[DMnd + i], 1.0/3.0)*fs - grad_rho/(s_prefactor*rho[DMnd + i])*df_ds);
+        vdWDFVx2[i] = Ax * df_ds/(s_prefactor*grad_rho);
+    }
+    for (i = 0; i < DMnd; i++) {
+        vdWDFex[i] = (exUpDn[i] + exUpDn[DMnd + i]) / rho[i];
+    }
+    free(exUpDn);
 }
 
 /**

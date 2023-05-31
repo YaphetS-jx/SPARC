@@ -3954,8 +3954,15 @@ void xc_decomposition(SPARC_OBJ *pSPARC)
         xc = -263267;
     } else if (strcmpi(pSPARC->XC, "vdWDF1") == 0) {
         xc = -102; // this is the index of Zhang-Yang revPBE exchange in Libxc
+        pSPARC->ixc[0] = 2; pSPARC->ixc[1] = 2; 
+        pSPARC->ixc[2] = 0; pSPARC->ixc[3] = 1;
+        pSPARC->xcoption[0] = 4; pSPARC->xcoption[1] = 0;
+        pSPARC->isgradient = 1;
     } else if (strcmpi(pSPARC->XC, "vdWDF2") == 0) {
         xc = -108; // this is the index of PW86 exchange in Libxc
+        pSPARC->ixc[0] = 3; pSPARC->ixc[1] = 2; 
+        pSPARC->ixc[2] = 0; pSPARC->ixc[3] = 2;
+        pSPARC->isgradient = 1;
     }
     for (int ityp = 0; ityp < pSPARC->Ntypes; ityp++) {
         if (!pSPARC->usefock && pSPARC->psd[ityp].pspxc != xc) {

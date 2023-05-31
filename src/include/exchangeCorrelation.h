@@ -107,6 +107,12 @@ void pbex(int DMnd, double *rho, double *sigma, int iflag, double *ex, double *v
 
 
 /**
+* @brief the function to compute the potential and energy density of PW86 GGA exchange
+*/
+void rPW86x(int DMnd, double *rho, double *sigma, double *vdWDFex, double *vdWDFVx1, double *vdWDFVx2);
+
+
+/**
  * @brief   pbe correlation
  *
  * @param   iflag=1  J.P.Perdew, K.Burke, M.Ernzerhof, PRL 77, 3865 (1996)
@@ -145,6 +151,12 @@ void pz_spin(int DMnd, double *rho, double *ec, double *vc);
  * @param   iflag=4  Zhang-Yang Revised PBE: Y. Zhang and W. Yang., Phys. Rev. Lett. 80, 890 (1998)
  */
 void pbex_spin(int DMnd, double *rho, double *sigma, int iflag, double *ex, double *vx, double *v2x);
+
+
+/**
+* @brief the function to compute the potential and energy density of PW86 GGA exchange, spin-polarized case
+*/
+void rPW86x_spin(int DMnd, double *rho, double *sigma, double *vdWDFex, double *vdWDFVx1, double *vdWDFVx2);
 
 
 /**
