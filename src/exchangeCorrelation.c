@@ -21,7 +21,6 @@
 #include "isddft.h"
 #include "gradVecRoutines.h"
 #include "tools.h"
-#include "vdWDFexchangeLinearCorre.h"
 #include "vdWDFnonlinearCorre.h"
 #include "mGGAexchangeCorrelation.h"
 
