@@ -1242,7 +1242,9 @@ void Transfer_Veff_loc(SPARC_OBJ *pSPARC, double *Veff_phi_domain, double *Veff_
     t2 = MPI_Wtime();
     if (rank == 0) printf("---Transfer Veff_loc: mpi_bcast (count = %d) to all bandcomms took %.3f ms\n",pSPARC->Nd_d_dmcomm,(t2-t1)*1e3);
 #endif
-    
+
+    if ((pSPARC->countPotentialCalculate > 1) && (pSPARC->ixc[2]))
+        Transfer_vxcMGGA3_phi_psi(pSPARC, pSPARC->vxcMGGA3, pSPARC->vxcMGGA3_loc_dmcomm); // only transfer the potential they are going to use
 }
 
 

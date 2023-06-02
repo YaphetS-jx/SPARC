@@ -23,20 +23,24 @@
 #include "tools.h"
 #include "vdWDFnonlinearCorre.h"
 #include "mGGAexchangeCorrelation.h"
+#include "mGGAscan.h"
 
 /**
 * @brief  Calculate exchange correlation potential
 **/
 void Calculate_Vxc(SPARC_OBJ *pSPARC)
-{
+{   
+    if ((pSPARC->ixc[2]) && (pSPARC->countPotentialCalculate))
+        compute_Kinetic_Density_Tau_Transfer_phi(pSPARC);
+
     if (pSPARC->dmcomm_phi == MPI_COMM_NULL) return;
     
     int ncol = 2*pSPARC->Nspin-1; 
     int DMnd = pSPARC->Nd_d;
     int sz = DMnd * ncol;
     double *rho = (double *)malloc(sz * sizeof(double) );
-    double *sigma, *Drho_x, *Drho_y, *Drho_z;
-    sigma = Drho_x = Drho_y = Drho_z = NULL;
+    double *sigma, *Drho_x, *Drho_y, *Drho_z, *tau;
+    sigma = Drho_x = Drho_y = Drho_z = tau = NULL;
 
     // add core electron density if needed
     add_rho_core(pSPARC, pSPARC->electronDens, rho, ncol);
@@ -54,16 +58,32 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
         }
     }
 
+    if (pSPARC->ixc[2]) { // metaGGA
+        if (pSPARC->countPotentialCalculate == 0) { // 1st SCF, calculate PBE
+            pSPARC->ixc[0] = 2; pSPARC->ixc[1] = 3; 
+            pSPARC->ixc[2] = 1; pSPARC->ixc[3] = 0;
+            pSPARC->xcoption[0] = 1; pSPARC->xcoption[1] = 1;
+        } 
+        else {
+            tau = pSPARC->KineticTauPhiDomain;
+        }
+    }
+
     if (pSPARC->spin_typ == 0) {
         double *ex = (double *)malloc(DMnd * sizeof(double) );
         double *ec = (double *)malloc(DMnd * sizeof(double) );
         double *vx = (double *)malloc(DMnd * sizeof(double) );
         double *vc = (double *)malloc(DMnd * sizeof(double) );
-        double *v2x, *v2c;
+        double *v2x, *v2c, *v3x, *v3c;
         v2x = v2c = NULL;
         if (pSPARC->isgradient) {
             v2x = (double *)malloc(DMnd * sizeof(double) );
             v2c = (double *)malloc(DMnd * sizeof(double) );
+        }
+        v3x = v3c = NULL;
+        if (pSPARC->ixc[2]) { // for metaGGA, d(n\epsilon)/d\tau
+            v3x = (double *)malloc(DMnd * sizeof(double) );
+            v3c = (double *)malloc(DMnd * sizeof(double) );
         }
 
         // iexch
@@ -77,6 +97,9 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
             break;
         case 3:
             rPW86x(DMnd, rho, sigma, ex, vx, v2x);
+            break;
+        case 4:
+            scanx(DMnd, rho, sigma, tau, ex, vx, v2x, v3x);
             break;
         default:
             memset(ex, 0, sizeof(double) * DMnd);
@@ -103,6 +126,9 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
             break;
         case 3:
             pbec(DMnd, rho, sigma, pSPARC->xcoption[1], ec, vc, v2c);
+            break;
+        case 4:
+            scanc(DMnd, rho, sigma, tau, ec, vc, v2c, v3c);
             break;
         default:
             memset(ec, 0, sizeof(double) * DMnd);
@@ -140,6 +166,9 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
             if (pSPARC->isgradient) {
                 pSPARC->Dxcdgrho[i] = v2x[i] + v2c[i];
             }
+            if (pSPARC->ixc[2] && (pSPARC->countPotentialCalculate)) {
+                pSPARC->vxcMGGA3[i] = v3x[i] + v3c[i];
+            }
         }
 
         if (pSPARC->ixc[3])
@@ -169,16 +198,24 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
             free(v2x);
             free(v2c);
         }
+        if (pSPARC->ixc[2]) {
+            free(v3x);
+            free(v3c);
+        }
     } else {
         double *ex = (double *)malloc(DMnd * sizeof(double) );
         double *ec = (double *)malloc(DMnd * sizeof(double) );
         double *vx = (double *)malloc(DMnd*2 * sizeof(double) );
         double *vc = (double *)malloc(DMnd*2 * sizeof(double) );
-        double *v2x, *v2c;
-        v2x = v2c = NULL;
+        double *v2x, *v2c, *v3x, *v3c;
+        v2x = v2c = v3x = v3c = NULL;
         if (pSPARC->isgradient) {
             v2x = (double *)malloc(DMnd*2 * sizeof(double) );
             v2c = (double *)malloc(DMnd * sizeof(double) );
+        }
+        if (pSPARC->ixc[2]) { // for metaGGA, d(n\epsilon)/d\tau
+            v3x = (double *)malloc(DMnd*2 * sizeof(double) );
+            v3c = (double *)malloc(DMnd * sizeof(double) );
         }
 
         // iexch
@@ -192,6 +229,9 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
             break;
         case 3:
             rPW86x_spin(DMnd, rho, sigma + DMnd, ex, vx, v2x);
+            break;
+        case 4:
+            scanx_spin(DMnd, rho, sigma, tau, ex, vx, v2x, v3x);
             break;
         default:
             memset(ex, 0, sizeof(double) * DMnd);
@@ -218,6 +258,9 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
             break;
         case 3:
             pbec_spin(DMnd, rho, sigma, pSPARC->xcoption[1], ec, vc, v2c);
+            break;
+        case 4:
+            scanc_spin(DMnd, rho, sigma, tau, ec, vc, v2c, v3c);
             break;
         default:
             memset(ec, 0, sizeof(double) * DMnd);
@@ -262,6 +305,10 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
                 pSPARC->Dxcdgrho[i+DMnd] = v2x[i];
                 pSPARC->Dxcdgrho[i+2*DMnd] = v2x[i+DMnd];
             }
+            if ((pSPARC->ixc[2]) && (pSPARC->countPotentialCalculate)) {
+                pSPARC->vxcMGGA3[i] = v3x[i] + v3c[i];
+                pSPARC->vxcMGGA3[i+DMnd] = v3x[i+DMnd] + v3c[i];
+            }
         }
 
         if (pSPARC->ixc[3])
@@ -292,6 +339,19 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
             free(v2x);
             free(v2c);
         }
+        if (pSPARC->ixc[2]) {
+            free(v3x);
+            free(v3c);
+        }
+    }
+
+    if (pSPARC->ixc[2]) {
+        if (pSPARC->countPotentialCalculate == 0) { // restore metaGGA labels after 1st SCF
+            pSPARC->ixc[0] = 4; pSPARC->ixc[1] = 4; 
+            pSPARC->ixc[2] = 1; pSPARC->ixc[3] = 0;
+            pSPARC->xcoption[0] = 0; pSPARC->xcoption[1] = 0;
+        } 
+        pSPARC->countPotentialCalculate++;
     }
 
     free(rho);

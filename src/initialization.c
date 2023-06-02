@@ -3952,6 +3952,9 @@ void xc_decomposition(SPARC_OBJ *pSPARC)
         if (!rank) printf("Note: You are using HSE with %.5g exact exchange.\n", pSPARC->exx_frac);
     } else if (strcmpi(pSPARC->XC, "SCAN") == 0) {
         xc = -263267;
+        pSPARC->ixc[0] = 4; pSPARC->ixc[1] = 4; 
+        pSPARC->ixc[2] = 1; pSPARC->ixc[3] = 0;
+        pSPARC->isgradient = 1;
     } else if (strcmpi(pSPARC->XC, "vdWDF1") == 0) {
         xc = -102; // this is the index of Zhang-Yang revPBE exchange in Libxc
         pSPARC->ixc[0] = 2; pSPARC->ixc[1] = 2; 
