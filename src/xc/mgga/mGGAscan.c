@@ -496,7 +496,7 @@ void scanx_spin(int DMnd, double *rho, double *sigma, double *tau, double *ex, d
 
     basic_MGSGA_variables_exchange(DMnd, rho + DMnd, normDrho + DMnd, tau + DMnd, s_dsdn_dsddn_exchange, alpha_dadn_daddn_dadtau_exchange);
 
-    Calculate_scanx_spin(DMnd, rho + DMnd, s_dsdn_dsddn_exchange, alpha_dadn_daddn_dadtau_exchange, ex, vx, v2x, v3x);
+    Calculate_scanx_spin(DMnd, rho, s_dsdn_dsddn_exchange, alpha_dadn_daddn_dadtau_exchange, ex, vx, v2x, v3x);
 
     for (i = 0; i < 2*DMnd; i++) {
         v2x[i] = v2x[i] / normDrho[i + DMnd];
@@ -561,8 +561,9 @@ void Calculate_scanx_spin(int length, double *rho, double **s_dsdn_dsddn, double
     double a1 = 4.9479;
     int i;
     double theRho;
+    double *epsilonx_updn = (double*)malloc(2*length * sizeof(double));
     for (i = 0; i < 2*length; i++) { // compute both up and down in a for loop
-        theRho = rho[i]*2.0;
+        theRho = rho[i + length]*2.0;
         double epsilon_xUnif = -3.0/(4.0*M_PI) * pow(3.0*M_PI*M_PI * theRho, 1.0/3.0);
         // compose h_x^1
         double s = s_dsdn_dsddn[0][i];
@@ -583,7 +584,7 @@ void Calculate_scanx_spin(int length, double *rho, double **s_dsdn_dsddn, double
         double sqrt_s = sqrt(s);
         double gx = 1.0 - exp(-a1/sqrt_s);
         double Fx = (hx1 + fx*(hx0 - hx1))*gx;
-        epsilonx[i] = epsilon_xUnif*Fx;
+        epsilonx_updn[i] = epsilon_xUnif*Fx;
 
         double term2 = s2*(b4/mu_ak*exp(-fabs(b4)*s2/mu_ak) + b4*s2/mu_ak*exp(-fabs(b4)*s2/mu_ak)*(-fabs(b4)/mu_ak));
         double term4 = b2*(-exp(-b3*(1.0 - alpha)*(1.0 - alpha)) + (1.0 - alpha)*exp(-b3*(1.0 - alpha)*(1.0 - alpha))*(2*b3*(1.0 - alpha)));
@@ -622,9 +623,15 @@ void Calculate_scanx_spin(int length, double *rho, double **s_dsdn_dsddn, double
         vx2[i] = theRho*epsilon_xUnif*DFxDDn;
         vx3[i] = theRho*epsilon_xUnif*DFxDtau;
     }
+
+    for (i = 0; i < length; i++) {
+        epsilonx[i] = (rho[i + length]*epsilonx_updn[i] + rho[i + 2*length]*epsilonx_updn[i + length])/rho[i];
+    }
+
     // for (i = 0; i < length; i++) {
     //     printf("point %3d, epsilon_x %.7E, vx1 %.7E, vx2 %.7E, vx3 %.7E\n", i, epsilonx[i], vx1[i], vx2[i], vx3[i]);
     // }
+    free(epsilonx_updn);
 }
 
 void scanc_spin(int DMnd, double *rho, double *sigma, double *tau, double *ec, double *vc, double *v2c, double *v3c) { 
