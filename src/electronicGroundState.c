@@ -40,6 +40,7 @@
 #include "exactExchange.h"
 #include "d3correction.h"
 #include "d3forceStress.h"
+#include "mGGAtauTransferTauVxc.h"
 #include "spinOrbitCoupling.h"
 #include "sq.h"
 #include "sqFinalization.h"
