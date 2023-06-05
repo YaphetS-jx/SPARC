@@ -531,6 +531,7 @@ void scf(SPARC_OBJ *pSPARC)
     #endif
     // calculate xc potential (LDA), "Vxc"
     Calculate_Vxc(pSPARC);
+    pSPARC->countPotentialCalculate++;
 	#ifdef DEBUG
     t2 = MPI_Wtime();
     if (rank == 0) printf("rank = %d, XC calculation took %.3f ms\n", rank, (t2-t1)*1e3); 
@@ -635,8 +636,11 @@ void scf_loop(SPARC_OBJ *pSPARC) {
         
         if (pSPARC->SQFlag == 1)
             Calculate_elecDens_SQ(pSPARC, SCFcount);
-        else
+        else {
             Calculate_elecDens(rank, pSPARC, SCFcount, error);
+            if ((pSPARC->ixc[2]) && (pSPARC->countPotentialCalculate))
+                compute_Kinetic_Density_Tau_Transfer_phi(pSPARC);
+        }
 
         // Calculate net magnetization for spin polarized calculations
         if (pSPARC->spin_typ != 0)
@@ -697,7 +701,7 @@ void scf_loop(SPARC_OBJ *pSPARC) {
             
             // calculate xc potential (LDA, PW92), "Vxc"
             Calculate_Vxc(pSPARC);
-		    
+		    pSPARC->countPotentialCalculate++;
 		    #ifdef DEBUG
             t2 = MPI_Wtime();
             if(!rank) printf("rank = %d, Calculating Vxc took %.3f ms\n", rank, (t2 - t1) * 1e3);
@@ -805,6 +809,7 @@ void scf_loop(SPARC_OBJ *pSPARC) {
             // solve the poisson equation for electrostatic potential, "phi"
             Calculate_elecstPotential(pSPARC);
             Calculate_Vxc(pSPARC);
+            pSPARC->countPotentialCalculate++;
             Calculate_Veff_loc_dmcomm_phi(pSPARC);
         }
 

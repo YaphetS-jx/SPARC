@@ -30,9 +30,6 @@
 **/
 void Calculate_Vxc(SPARC_OBJ *pSPARC)
 {   
-    if ((pSPARC->ixc[2]) && (pSPARC->countPotentialCalculate))
-        compute_Kinetic_Density_Tau_Transfer_phi(pSPARC);
-
     if (pSPARC->dmcomm_phi == MPI_COMM_NULL) return;
     
     int ncol = 2*pSPARC->Nspin-1; 
@@ -351,7 +348,6 @@ void Calculate_Vxc(SPARC_OBJ *pSPARC)
             pSPARC->ixc[2] = 1; pSPARC->ixc[3] = 0;
             pSPARC->xcoption[0] = 0; pSPARC->xcoption[1] = 0;
         } 
-        pSPARC->countPotentialCalculate++;
     }
 
     free(rho);
@@ -1688,11 +1684,3 @@ void Calculate_xc_energy_density(SPARC_OBJ *pSPARC, double *ExcRho)
 #endif
 }
 
-
-
-///////////////////////////////////
-void xc_constants_init(XCCST_OBJ *xc_cst, SPARC_OBJ *pSPARC){}
-void Calculate_Vxc_GGA_PBE(SPARC_OBJ *pSPARC, XCCST_OBJ *xc_cst, double *rho){}
-void Calculate_Vxc_GSGA_PBE(SPARC_OBJ *pSPARC, XCCST_OBJ *xc_cst, double *rho){}
-void Calculate_Exc_GGA_PBE(SPARC_OBJ *pSPARC, double *electronDens){}
-void Calculate_Exc_GSGA_PBE(SPARC_OBJ *pSPARC, double *electronDens){}
