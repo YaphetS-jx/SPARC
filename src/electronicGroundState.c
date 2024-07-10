@@ -271,6 +271,19 @@ void Calculate_electronicGroundState(SPARC_OBJ *pSPARC) {
 		}
 	}
 	
+    // print energy density
+    if (pSPARC->PrintEnergyDensFlag == 1) {
+        #ifdef DEBUG
+        double t1, t2;
+        t1 = MPI_Wtime();
+        #endif
+        printEnergyDensity(pSPARC);
+        #ifdef DEBUG
+        t2 = MPI_Wtime();
+        if (rank == 0) printf("Time for printing energy density: %.3f ms\n", (t2-t1)*1e3);
+        #endif
+    }
+    
 	// Free the scf variables
     if (pSPARC->SQFlag == 1) {
         Free_scfvar_SQ(pSPARC);
@@ -314,19 +327,6 @@ void Calculate_electronicGroundState(SPARC_OBJ *pSPARC) {
         #ifdef DEBUG
         t2 = MPI_Wtime();
         if (rank == 0) printf("Time for printing orbitals: %.3f ms\n", (t2-t1)*1e3);
-        #endif
-    }
-
-    // print energy density
-    if (pSPARC->PrintEnergyDensFlag == 1) {
-        #ifdef DEBUG
-        double t1, t2;
-        t1 = MPI_Wtime();
-        #endif
-        printEnergyDensity(pSPARC);
-        #ifdef DEBUG
-        t2 = MPI_Wtime();
-        if (rank == 0) printf("Time for printing energy density: %.3f ms\n", (t2-t1)*1e3);
         #endif
     }
 }

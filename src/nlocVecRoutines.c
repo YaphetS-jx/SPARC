@@ -16,6 +16,9 @@
 #include <stdlib.h>
 #include <math.h>
 #include <mpi.h>
+#include <string.h>
+#include <assert.h>
+
 /* BLAS routines */
 #ifdef USE_MKL
     #include <mkl.h> // for cblas_* functions
@@ -996,4 +999,152 @@ void Vnl_vec_mult_kpt(const SPARC_OBJ *pSPARC, int DMnd, ATOM_NLOC_INFLUENCE_OBJ
         }
     }
     free(alpha);
+}
+
+
+/**
+ * @brief   Compute nonlocal energy density
+ */
+void computeNonlocalEnergyDensity(SPARC_OBJ *pSPARC, double *Enlrho)
+{
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (pSPARC->spincomm_index < 0 || pSPARC->bandcomm_index < 0 || pSPARC->dmcomm == MPI_COMM_NULL) return;
+
+    int i, Nband, DMnd, Ns, Nk, kpt, count;
+    int n, size_k, ncol;
+    double *X, *Vnl, g_nk;
+    double _Complex *X_kpt, *Vnl_kpt;
+    MPI_Comm comm;
+
+    #ifdef DEBUG
+    double t1, t2;
+    #endif
+
+    DMnd = pSPARC->Nd_d_dmcomm;
+    int DMndsp = DMnd * pSPARC->Nspinor_spincomm;
+    Nband = pSPARC->Nband_bandcomm;
+    size_k = DMndsp * Nband;
+    Ns = pSPARC->Nstates;
+    Nk = pSPARC->Nkpts_kptcomm;
+    ncol = (pSPARC->spin_typ == 0) ? DMnd : 2*DMnd;
+    comm = pSPARC->dmcomm;
+    memset(Enlrho, 0, sizeof(double) * DMnd * (2*pSPARC->Nspin-1));
+    double *Enlrho_ = (pSPARC->spin_typ > 0) ? Enlrho+DMnd : Enlrho;
+
+    if (pSPARC->isGammaPoint == 1) {
+        Vnl = (double *) malloc(sizeof(double) * DMnd * Nband);
+        assert(Vnl != NULL);
+        for (int spinor = 0; spinor < pSPARC->Nspinor_spincomm; spinor++) {
+            int sg  = pSPARC->spinor_start_indx + spinor;
+            X = pSPARC->Xorb + spinor*DMnd;
+            double *occ = (pSPARC->spin_typ == 1) ? (pSPARC->occ+spinor*Ns) : pSPARC->occ;
+
+            memset(Vnl, 0, sizeof(double)* DMnd * Nband);
+            Vnl_vec_mult(pSPARC, DMnd, pSPARC->Atom_Influence_nloc, pSPARC->nlocProj, Nband, X, DMndsp, Vnl, DMnd, comm);
+
+            count = 0;
+            for (n = 0; n < Nband; n++) {
+                g_nk = occ[n+pSPARC->band_start_indx];
+                for (i = 0; i < DMnd; i++, count++) {
+                    // first column spin up, second colum spin down, last column total in case of spin-polarized calculation
+                    // only total in case of non-spin-polarized calculation
+                    // different from electron density 
+                    Enlrho_[sg*DMnd + i] += g_nk * X[i+n*DMndsp] * Vnl[count];
+                }
+            }
+        }
+        free(Vnl);
+    } else {                
+        Vnl_kpt = (double _Complex *) malloc(sizeof(double _Complex) * DMnd * Nband);
+        assert(Vnl_kpt != NULL);
+        for (kpt = 0; kpt < Nk; kpt++) {
+            for (int spinor = 0; spinor < pSPARC->Nspinor_spincomm; spinor++) {
+                int sg  = pSPARC->spin_start_indx + spinor;
+                X_kpt = pSPARC->Xorb_kpt + kpt*size_k + spinor*DMnd;
+                double *occ = (pSPARC->spin_typ == 1) ? (pSPARC->occ+spinor*Ns*Nk) : pSPARC->occ;
+
+                memset(Vnl_kpt, 0, sizeof(double _Complex) * DMnd * Nband);
+                Vnl_vec_mult_kpt(pSPARC, DMnd, pSPARC->Atom_Influence_nloc, pSPARC->nlocProj, Nband, X_kpt, DMndsp, Vnl_kpt, DMnd, kpt, comm);
+                
+                count = 0;
+                for (n = 0; n < Nband; n++) {
+                    g_nk = (pSPARC->kptWts_loc[kpt] / pSPARC->Nkpts) * occ[kpt*Ns+n+pSPARC->band_start_indx];
+                    for (i = 0; i < DMnd; i++, count++) {
+                        // first column spin up, second colum spin down, last column total in case of spin-polarized calculation
+                        // only total in case of non-spin-polarized calculation
+                        // different from electron density 
+                        Enlrho_[sg*DMnd + i] += g_nk * creal(conj(X_kpt[i+n*DMndsp]) * Vnl_kpt[count]);
+                    }
+                }
+            }
+        }
+        free(Vnl_kpt);
+    }
+
+    // sum over spin comm group
+    if(pSPARC->npspin > 1) {
+    #ifdef DEBUG
+        t1 = MPI_Wtime();
+    #endif
+        MPI_Allreduce(MPI_IN_PLACE, Enlrho_, ncol, MPI_DOUBLE, MPI_SUM, pSPARC->spin_bridge_comm);
+
+    #ifdef DEBUG
+        t2 = MPI_Wtime();
+        if (rank == 0) printf("rank = %d, --- Calculate kinetic energy density: reduce over all spin_comm took %.3f ms\n", rank, (t2-t1)*1e3);
+    #endif
+    }
+
+    // sum over all k-point groups
+    if (pSPARC->npkpt > 1 && pSPARC->spincomm_index == 0) {
+    #ifdef DEBUG
+        t1 = MPI_Wtime();
+    #endif
+        MPI_Allreduce(MPI_IN_PLACE, Enlrho_, ncol, MPI_DOUBLE, MPI_SUM, pSPARC->kpt_bridge_comm);
+        
+    #ifdef DEBUG
+        t2 = MPI_Wtime();
+        if (rank == 0) printf("rank = %d, --- Calculate exact exchange energy density: reduce over all kpoint groups took %.3f ms\n", rank, (t2-t1)*1e3);
+    #endif
+    }
+
+    // sum over all band groups (only in the first k point group)
+    if (pSPARC->npband > 1 && pSPARC->spincomm_index == 0 && pSPARC->kptcomm_index == 0) {
+    #ifdef DEBUG
+        t1 = MPI_Wtime();
+    #endif
+        MPI_Allreduce(MPI_IN_PLACE, Enlrho_, ncol, MPI_DOUBLE, MPI_SUM, pSPARC->blacscomm);
+
+    #ifdef DEBUG
+        t2 = MPI_Wtime();
+        if (rank == 0) printf("rank = %d, --- Calculate exact exchange energy density: reduce over all band groups took %.3f ms\n", rank, (t2-t1)*1e3);
+    #endif
+    }
+
+    double vscal = 1.0 / pSPARC->dV;
+    if (pSPARC->spin_typ == 0) {
+        for (i = 0; i < DMnd; i++) {
+            Enlrho[i] *= vscal;
+        }
+    } else {
+        vscal *= 0.5;
+        for (i = 0; i < 2*DMnd; i++) {
+            Enlrho[i+DMnd] *= vscal;
+        }
+        // Total nl energy density 
+        for (i = 0; i < DMnd; i++) {
+            Enlrho[i] = Enlrho[i+DMnd] + Enlrho[i+2*DMnd];
+        }
+    }
+#ifdef DEBUG
+    double Enl = 0.0;
+    for (i = 0; i < DMnd; i++) {
+        Enl += Enlrho[i];
+    }
+    if (pSPARC->spincomm_index == 0 && pSPARC->kptcomm_index == 0 && pSPARC->bandcomm_index == 0) {
+        MPI_Allreduce(MPI_IN_PLACE, &Enl, 1, MPI_DOUBLE, MPI_SUM, pSPARC->dmcomm);
+    }
+    Enl *= pSPARC->dV;
+    if (!rank) printf("\nNonlocal energy from energy density: %f Ha\n", Enl);
+#endif
 }

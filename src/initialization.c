@@ -1480,6 +1480,9 @@ void SPARC_copy_input(SPARC_OBJ *pSPARC, SPARC_INPUT_OBJ *pSPARC_Input) {
         snprintf(pSPARC->ExxEnDensTCubFilename,  L_STRING, "%s.exxedens",     pSPARC->filename_out);
         snprintf(pSPARC->ExxEnDensUCubFilename,  L_STRING, "%s.exxedensUp",   pSPARC->filename_out);
         snprintf(pSPARC->ExxEnDensDCubFilename,  L_STRING, "%s.exxedensDwn",  pSPARC->filename_out);
+        snprintf(pSPARC->EnlEnDensTCubFilename,  L_STRING, "%s.nledens",     pSPARC->filename_out);
+        snprintf(pSPARC->EnlEnDensUCubFilename,  L_STRING, "%s.nledensUp",   pSPARC->filename_out);
+        snprintf(pSPARC->EnlEnDensDCubFilename,  L_STRING, "%s.nledensDwn",  pSPARC->filename_out);
 
         // check if the name for out file exits
         char temp_outfname[L_STRING];
@@ -1549,6 +1552,12 @@ void SPARC_copy_input(SPARC_OBJ *pSPARC, SPARC_INPUT_OBJ *pSPARC_Input) {
             snprintf(pSPARC->ExxEnDensUCubFilename, L_STRING, "%s_%02d", tempchar, i);
             snprintf(tempchar, L_STRING, "%s", pSPARC->ExxEnDensDCubFilename);
             snprintf(pSPARC->ExxEnDensDCubFilename, L_STRING, "%s_%02d", tempchar, i);
+            snprintf(tempchar, L_STRING, "%s", pSPARC->EnlEnDensTCubFilename);
+            snprintf(pSPARC->EnlEnDensTCubFilename, L_STRING, "%s_%02d", tempchar, i);
+            snprintf(tempchar, L_STRING, "%s", pSPARC->EnlEnDensUCubFilename);
+            snprintf(pSPARC->EnlEnDensUCubFilename, L_STRING, "%s_%02d", tempchar, i);
+            snprintf(tempchar, L_STRING, "%s", pSPARC->EnlEnDensDCubFilename);
+            snprintf(pSPARC->EnlEnDensDCubFilename, L_STRING, "%s_%02d", tempchar, i);
         }
     }
     // Not only rank 0 printing orbitals

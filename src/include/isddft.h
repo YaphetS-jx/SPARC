@@ -204,6 +204,9 @@ typedef struct _SPARC_OBJ{
     char ExxEnDensTCubFilename[L_STRING];
     char ExxEnDensUCubFilename[L_STRING];
     char ExxEnDensDCubFilename[L_STRING];
+    char EnlEnDensTCubFilename[L_STRING];
+    char EnlEnDensUCubFilename[L_STRING];
+    char EnlEnDensDCubFilename[L_STRING];
     
     /* Parallelizing parameters */
     int num_node;       // number of processor nodes
@@ -960,6 +963,7 @@ typedef struct _SPARC_OBJ{
     double *KineticRho;         // Kinetic energy density
     double *ExxRho;             // Exact exchange energy density
     double *ExcRho;             // Exchange correlation energy density
+    double *EnlRho;             // Nonlocal enenrgy density
 
     /* Timing */
     double time_start;

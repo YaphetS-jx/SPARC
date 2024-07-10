@@ -28,6 +28,7 @@
 #include "exactExchangeEnergyDensity.h"
 #include "mGGAtauTransferTauVxc.h"
 #include "initialization.h"
+#include "nlocVecRoutines.h"
 
 
 /**
@@ -788,8 +789,8 @@ void printEnergyDensity(SPARC_OBJ *pSPARC)
 {
     int rank, nproc_dmcomm, rank_dmcomm, nproc_dmcomm_phi, rank_dmcomm_phi;
     int DMnd, Nd;
-    double *KineticRho, *ExxRho, *ExcRho;
-    KineticRho = ExxRho = ExcRho = NULL;
+    double *KineticRho, *ExxRho, *ExcRho, *EnlRho;
+    KineticRho = ExxRho = ExcRho = EnlRho = NULL;
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     Nd = pSPARC->Nd;
@@ -824,6 +825,9 @@ if (rank == 0) printf("Time for calculating exchange correlation energy density:
         if (rank == 0) printf("Time for calculating exact exchange energy density: %.3f ms\n", (t2-t1)*1e3);
 #endif
     }
+    
+    pSPARC->EnlRho = (double *) calloc(pSPARC->Nd_d_dmcomm * (2*pSPARC->Nspin-1), sizeof(double));    
+    computeNonlocalEnergyDensity(pSPARC, pSPARC->EnlRho);
 
     // start printing
     int n_rho = 1;
@@ -858,6 +862,7 @@ if (rank == 0) printf("Time for calculating exchange correlation energy density:
         if (pSPARC->usefock > 0) {
             ExxRho = (double*)malloc(Nd * n_rho * sizeof(double));
         }
+        EnlRho = (double*)malloc(Nd * n_rho * sizeof(double));
     }
     
     GatherEnergyDensity_dmcomm(pSPARC, pSPARC->KineticRho, KineticRho);
@@ -871,6 +876,12 @@ if (rank == 0) printf("Time for calculating exchange correlation energy density:
             GatherEnergyDensity_dmcomm(pSPARC, pSPARC->ExxRho + DMnd, ExxRho + Nd);
             GatherEnergyDensity_dmcomm(pSPARC, pSPARC->ExxRho + 2*DMnd, ExxRho + 2*Nd);
         }
+    }
+
+    GatherEnergyDensity_dmcomm(pSPARC, pSPARC->EnlRho, EnlRho);
+    if (pSPARC->Nspin > 1) {
+        GatherEnergyDensity_dmcomm(pSPARC, pSPARC->EnlRho + DMnd, EnlRho + Nd);
+        GatherEnergyDensity_dmcomm(pSPARC, pSPARC->EnlRho + 2*DMnd, EnlRho + 2*Nd);
     }
 
     // gather densities in dmcomm_phi
@@ -904,6 +915,15 @@ if (rank == 0) printf("Time for calculating exchange correlation energy density:
                 printDens_cube(pSPARC, ExxRho + 2*Nd, pSPARC->ExxEnDensDCubFilename, "Spin-down exact exchange energy density");
             }
         }
+
+        // print in cube format
+        if (pSPARC->Nspin == 1) {
+            printDens_cube(pSPARC, EnlRho, pSPARC->EnlEnDensTCubFilename, "Nonlocal energy density");
+        } else {
+            printDens_cube(pSPARC, EnlRho, pSPARC->EnlEnDensTCubFilename, "Total Nonlocal energy density");
+            printDens_cube(pSPARC, EnlRho + Nd, pSPARC->EnlEnDensUCubFilename, "Spin-up Nonlocal energy density");
+            printDens_cube(pSPARC, EnlRho + 2*Nd, pSPARC->EnlEnDensDCubFilename, "Spin-down Nonlocal energy density");
+        }
     }
 
     if (rank == 0) {
@@ -912,8 +932,10 @@ if (rank == 0) printf("Time for calculating exchange correlation energy density:
         if (pSPARC->usefock > 0) {
             free(ExxRho);
         }
+        free(EnlRho);
     }
 
+    free(pSPARC->EnlRho);
     free(pSPARC->ExcRho);
     free(pSPARC->KineticRho);
     if (pSPARC->usefock > 0) {
